@@ -1,10 +1,11 @@
-CXX      := g++
+CXX      ?= g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Wpedantic
 TARGET   := mdrender
 SRCS     := src/main.cpp
 BUILD    := build
+PREFIX   ?= /usr/local
 
-.PHONY: all clean install
+.PHONY: all clean install uninstall
 
 all: $(BUILD)/$(TARGET)
 
@@ -15,7 +16,11 @@ $(BUILD):
 	mkdir -p $(BUILD)
 
 install: $(BUILD)/$(TARGET)
-	install -m 755 $(BUILD)/$(TARGET) /usr/local/bin/$(TARGET)
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -m 755 $(BUILD)/$(TARGET) $(DESTDIR)$(PREFIX)/bin/$(TARGET)
+
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(TARGET)
 
 clean:
 	rm -rf $(BUILD)
