@@ -13,7 +13,7 @@ No Electron, no browser — just pure C++17 and ANSI escape codes.
 ## Installation
 
 ```bash
-git clone https://github.com/you/mdrender
+git clone https://github.com/L3CHUGU1T4/mdRender.git
 cd mdrender
 make && make install
 ```
@@ -29,7 +29,7 @@ mdrender -p README.md    # pipe / print raw
 
 ### Inline formatting
 
-You can use **bold**, *italic*, ~~strikethrough~~, and `inline code`.
+You can use **bold**, _italic_, ~~strikethrough~~, and `inline code`.
 Links look like [GitHub](https://github.com) in the output.
 
 ### Code blocks with syntax highlighting
@@ -58,12 +58,12 @@ def fibonacci(n: int) -> list[int]:
 
 ### Tables
 
-| Language | Paradigm     | Typed  |
-|----------|-------------|--------|
-| C++      | Multi        | Static |
-| Python   | Multi        | Dynamic|
-| Rust     | Systems      | Static |
-| Go       | Concurrent   | Static |
+| Language | Paradigm   | Typed   |
+| -------- | ---------- | ------- |
+| C++      | Multi      | Static  |
+| Python   | Multi      | Dynamic |
+| Rust     | Systems    | Static  |
+| Go       | Concurrent | Static  |
 
 ### Blockquotes
 
@@ -112,4 +112,4 @@ corrupts your scrollback history. Resize-safe via `TIOCGWINSZ`.
 
 ---
 
-*Built with C++17. No dependencies. MIT License.*
+_Built with C++17. No dependencies. MIT License._
