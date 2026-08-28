@@ -269,33 +269,91 @@ inline std::string render(const std::vector<Block>& blocks) {
             break;
 
         // ── Table ─────────────────────────────────────────────────────────
+        // Collect the full table (header + separator + rows) to compute column widths first
         case BlockType::TABLE_HEADER: {
-            auto cells = splitCells(b.content);
-            out += "\n  " + ansi::color::TABLE_BORDER + "\xe2\x94\x82" + ansi::RESET;
-            for (auto& c : cells)
-                out += " " + ansi::BOLD + ansi::color::TABLE_HEADER + c + ansi::RESET
-                     + " " + ansi::color::TABLE_BORDER + "\xe2\x94\x82" + ansi::RESET;
-            out += "\n";
-            break;
-        }
-        case BlockType::TABLE_SEPARATOR: {
-            auto cells = splitCells(b.content);
-            out += "  " + ansi::color::TABLE_BORDER + "\xe2\x94\x9c";
-            for (size_t ci = 0; ci < cells.size(); ++ci) {
-                out += rep("\xe2\x94\x80", (int)cells[ci].size() + 2);
-                out += (ci + 1 < cells.size()) ? "\xe2\x94\xbc" : "\xe2\x94\xa4";
+            // Look ahead and grab all consecutive table blocks
+            std::vector<size_t> tblIdx;
+            tblIdx.push_back(idx);
+            size_t j = idx + 1;
+            while (j < blocks.size() &&
+                   (blocks[j].type == BlockType::TABLE_HEADER   ||
+                    blocks[j].type == BlockType::TABLE_SEPARATOR ||
+                    blocks[j].type == BlockType::TABLE_ROW)) {
+                tblIdx.push_back(j);
+                ++j;
+            }
+            idx = j - 1;
+
+            // Parse raw cells per row (skip separator rows)
+            struct TblRow { std::vector<std::string> cells; bool isHeader; };
+            std::vector<TblRow> rows;
+            for (size_t ti : tblIdx) {
+                const Block& tb = blocks[ti];
+                if (tb.type == BlockType::TABLE_SEPARATOR) continue;
+                rows.push_back({ splitCells(tb.content), tb.type == BlockType::TABLE_HEADER });
+            }
+            if (rows.empty()) break;
+
+            // Compute column widths from raw content
+            size_t ncols = 0;
+            for (auto& r : rows) ncols = std::max(ncols, r.cells.size());
+            std::vector<int> colW(ncols, 3);
+            for (auto& r : rows)
+                for (size_t c = 0; c < r.cells.size(); ++c)
+                    colW[c] = std::max(colW[c], (int)r.cells[c].size());
+
+            auto pad = [](const std::string& s, int w) {
+                std::string r = s;
+                while ((int)r.size() < w) r += ' ';
+                return r;
+            };
+
+            // ┌──────────┬────────────┬─────────┐
+            out += "\n  " + ansi::color::TABLE_BORDER + "\xe2\x94\x8c";
+            for (size_t c = 0; c < ncols; ++c) {
+                out += rep("\xe2\x94\x80", colW[c] + 2);
+                out += (c + 1 < ncols) ? "\xe2\x94\xac" : "\xe2\x94\x90";
             }
             out += ansi::RESET + "\n";
+
+            for (auto& row : rows) {
+                // │ Cell     │ Cell     │
+                out += "  " + ansi::color::TABLE_BORDER + "\xe2\x94\x82" + ansi::RESET;
+                for (size_t c = 0; c < ncols; ++c) {
+                    std::string cell = c < row.cells.size() ? row.cells[c] : "";
+                    if (row.isHeader)
+                        out += " " + ansi::BOLD + ansi::color::TABLE_HEADER + pad(cell, colW[c]) + ansi::RESET;
+                    else
+                        out += " " + renderInline(pad(cell, colW[c]));
+                    out += " " + ansi::color::TABLE_BORDER + "\xe2\x94\x82" + ansi::RESET;
+                }
+                out += "\n";
+
+                // ├──────────┼────────────┼─────────┤  (after header)
+                if (row.isHeader) {
+                    out += "  " + ansi::color::TABLE_BORDER + "\xe2\x94\x9c";
+                    for (size_t c = 0; c < ncols; ++c) {
+                        out += rep("\xe2\x94\x80", colW[c] + 2);
+                        out += (c + 1 < ncols) ? "\xe2\x94\xbc" : "\xe2\x94\xa4";
+                    }
+                    out += ansi::RESET + "\n";
+                }
+            }
+
+            // └──────────┴────────────┴─────────┘
+            out += "  " + ansi::color::TABLE_BORDER + "\xe2\x94\x94";
+            for (size_t c = 0; c < ncols; ++c) {
+                out += rep("\xe2\x94\x80", colW[c] + 2);
+                out += (c + 1 < ncols) ? "\xe2\x94\xb4" : "\xe2\x94\x98";
+            }
+            out += ansi::RESET + "\n\n";
             break;
         }
-        case BlockType::TABLE_ROW: {
-            auto cells = splitCells(b.content);
-            out += "  " + ansi::color::TABLE_BORDER + "\xe2\x94\x82" + ansi::RESET;
-            for (auto& c : cells)
-                out += " " + renderInline(c) + " " + ansi::color::TABLE_BORDER + "\xe2\x94\x82" + ansi::RESET;
-            out += "\n";
+
+        case BlockType::TABLE_SEPARATOR:
+        case BlockType::TABLE_ROW:
+            // Consumed inside TABLE_HEADER case
             break;
-        }
 
         default: break;
         }
