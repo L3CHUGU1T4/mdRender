@@ -36,7 +36,7 @@ namespace color {
     const std::string STRIKE       = fg(110, 100, 130);
 
     // Blockquote — warm amber keeps contrast against purple theme
-    const std::string QUOTE        = fg(255, 200, 120);
+    const std::string QUOTE        = fg(175, 168, 195);
     const std::string QUOTE_BAR    = fg(180, 100, 255);  // purple bar instead of orange
 
     // Lists
