@@ -9,9 +9,10 @@
 #include "parser.hpp"
 #include "highlighter.hpp"
 
-// Repeat a UTF-8 string n times (box-drawing chars are multi-byte)
+// Repeat a UTF-8 string n times
 inline std::string rep(const std::string& s, int n) {
     std::string r;
+    if (n <= 0) return r;
     r.reserve(s.size() * static_cast<size_t>(n));
     for (int i = 0; i < n; ++i) r += s;
     return r;
@@ -86,7 +87,7 @@ inline std::string renderInline(const std::string& text) {
                     std::string linkText = text.substr(i + 1, mid - i - 1);
                     std::string url      = text.substr(mid + 2, end - mid - 2);
                     result += ansi::UNDERLINE + ansi::color::LINK + linkText + ansi::RESET
-                            + ansi::color::STRIKE + " (" + url + ")" + ansi::RESET;
+                            + ansi::color::LINK_URL + " (" + url + ")" + ansi::RESET;
                     i = end + 1; continue;
                 }
             }
@@ -129,6 +130,14 @@ inline std::string render(const std::vector<Block>& blocks) {
     bool lastWasBlank = false;
     int  olCounter    = 1;
 
+    // UTF-8 box / decoration bytes
+    // ═  \xe2\x95\x90    ─  \xe2\x94\x80    ━  \xe2\x94\x81
+    // ◆  \xe2\x97\x86    ◇  \xe2\x97\x87    ◈  \xe2\x97\x88
+    // ▌  \xe2\x96\x8c    ▐  \xe2\x96\x90    ▎  \xe2\x96\x8e
+    // ▸  \xe2\x96\xb8    ◦  \xe2\x97\xa6    ●  \xe2\x97\x8f
+    // ┃  \xe2\x94\x83    │  \xe2\x94\x82
+    // ╸  \xe2\x95\xb8    ╺  \xe2\x95\xba
+
     for (size_t idx = 0; idx < blocks.size(); ++idx) {
         const Block& b = blocks[idx];
 
@@ -139,36 +148,62 @@ inline std::string render(const std::vector<Block>& blocks) {
             lastWasBlank = true;
             continue;
 
+        // ── HR ──────────────────────────────────────────────────────────────
         case BlockType::HR:
-            out += ansi::color::HR + rep("\xe2\x94\x80", width) + ansi::RESET + "\n";
+            out += "\n"
+                 + ansi::color::H1_ACCENT + "  \xe2\x97\x86" + ansi::RESET
+                 + ansi::color::HR + rep("\xe2\x94\x80", width - 6) + ansi::RESET
+                 + ansi::color::H1_ACCENT + "\xe2\x97\x86" + ansi::RESET + "\n\n";
             break;
 
-        // ── Headers ─────────────────────────────────────────────────────────
-        case BlockType::H1:
+        // ── H1 ──────────────────────────────────────────────────────────────
+        case BlockType::H1: {
+            // ◆━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◆
+            //   ◆  Title Text
+            // ◆━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◆
+            int lineW = width - 2;
             out += "\n";
-            out += ansi::color::H1 + rep("\xe2\x95\x90", width) + ansi::RESET + "\n";
-            out += ansi::BOLD + ansi::color::H1 + "  " + b.content + "  " + ansi::RESET + "\n";
-            out += ansi::color::H1 + rep("\xe2\x95\x90", width) + ansi::RESET + "\n\n";
-            break;
-
-        case BlockType::H2: {
-            int underLen = std::min((int)b.content.size() + 4, width);
-            out += "\n";
-            out += ansi::BOLD + ansi::color::H2 + "\xe2\x96\x8c " + b.content + ansi::RESET + "\n";
-            out += ansi::color::H2 + rep("\xe2\x94\x80", underLen) + ansi::RESET + "\n\n";
+            out += ansi::color::H1_ACCENT + "  \xe2\x97\x86"
+                 + rep("\xe2\x94\x81", lineW - 2)
+                 + "\xe2\x97\x86" + ansi::RESET + "\n";
+            out += ansi::BOLD + ansi::color::H1 + "  \xe2\x97\x86  " + ansi::RESET
+                 + ansi::BOLD + ansi::color::H1 + b.content + ansi::RESET + "\n";
+            out += ansi::color::H1_ACCENT + "  \xe2\x97\x86"
+                 + rep("\xe2\x94\x81", lineW - 2)
+                 + "\xe2\x97\x86" + ansi::RESET + "\n\n";
             break;
         }
+
+        // ── H2 ──────────────────────────────────────────────────────────────
+        case BlockType::H2: {
+            // ▐░ Section Title
+            // ━━━━━━━━━━━━━━━━
+            int underLen = std::min((int)b.content.size() + 6, width - 2);
+            out += "\n";
+            out += ansi::color::H2_BAR + "  \xe2\x96\x90" + ansi::RESET
+                 + ansi::color::H2_BAR + "\xe2\x96\x8c " + ansi::RESET
+                 + ansi::BOLD + ansi::color::H2 + b.content + ansi::RESET + "\n";
+            out += "  " + ansi::color::H2_BAR + rep("\xe2\x94\x81", underLen) + ansi::RESET + "\n\n";
+            break;
+        }
+
+        // ── H3 ──────────────────────────────────────────────────────────────
         case BlockType::H3:
-            out += "\n" + ansi::BOLD + ansi::color::H3 + "\xe2\x96\xb8\xe2\x96\xb8 " + b.content + ansi::RESET + "\n\n";
+            out += "\n  " + ansi::color::H3 + "\xe2\x97\x88 " + ansi::RESET
+                 + ansi::BOLD + ansi::color::H3 + b.content + ansi::RESET
+                 + "  " + ansi::color::H3 + ansi::DIM + rep("\xe2\x94\x80", 20) + ansi::RESET + "\n\n";
             break;
 
+        // ── H4 ──────────────────────────────────────────────────────────────
         case BlockType::H4:
-            out += ansi::BOLD + ansi::color::H4 + "  \xe2\x96\xb9 " + b.content + ansi::RESET + "\n";
+            out += "    " + ansi::color::H4 + "\xe2\x95\xb8 " + ansi::RESET
+                 + ansi::BOLD + ansi::color::H4 + b.content + ansi::RESET + "\n";
             break;
 
         case BlockType::H5:
         case BlockType::H6:
-            out += ansi::BOLD + ansi::color::H4 + "    \xe2\x80\xa2 " + b.content + ansi::RESET + "\n";
+            out += "      " + ansi::color::H4 + ansi::DIM + "\xe2\x80\xa2 "
+                 + b.content + ansi::RESET + "\n";
             break;
 
         // ── Paragraph ────────────────────────────────────────────────────────
@@ -180,14 +215,15 @@ inline std::string render(const std::vector<Block>& blocks) {
         case BlockType::CODE_BLOCK: {
             out += "\n";
             std::string langLabel = b.meta.empty() ? "code" : b.meta;
-            // top border: "  ┌─ lang ────────┐"
+
+            // top: "  ╭─ lang ────────────────────────────────╮"
             std::string topPrefix = "  \xe2\x94\x8c\xe2\x94\x80 " + langLabel + " ";
             int fillLen = width - 2 - (int)langLabel.size() - 5;
-            out += ansi::color::TABLE_BORDER + topPrefix;
+            out += ansi::color::CODE_BORDER + topPrefix;
             if (fillLen > 0) out += rep("\xe2\x94\x80", fillLen);
             out += "\xe2\x94\x90" + ansi::RESET + "\n";
 
-            // code lines
+            // lines
             std::istringstream cs(b.content);
             std::string codeLine;
             auto rules = rulesFor(detectLang(b.meta));
@@ -201,8 +237,9 @@ inline std::string render(const std::vector<Block>& blocks) {
                      + ansi::color::CODE_BG + highlightLine(codeLine, rules) + ansi::RESET + "\n";
             }
 
-            // bottom border
-            out += ansi::color::TABLE_BORDER + "  \xe2\x94\x94" + rep("\xe2\x94\x80", width - 3) + "\xe2\x94\x98" + ansi::RESET + "\n\n";
+            // bottom
+            out += ansi::color::CODE_BORDER + "  \xe2\x94\x94"
+                 + rep("\xe2\x94\x80", width - 3) + "\xe2\x94\x98" + ansi::RESET + "\n\n";
             break;
         }
 
@@ -214,18 +251,20 @@ inline std::string render(const std::vector<Block>& blocks) {
 
         // ── Unordered list ───────────────────────────────────────────────────
         case BlockType::UL_ITEM: {
-            std::string indent(static_cast<size_t>(b.level) * 2 + 2, ' ');
-            const char* bullet = b.level == 0 ? "\xe2\x97\x8f"   // ●
-                               : b.level == 1 ? "\xe2\x97\xa6"   // ◦
-                               :                "\xe2\x96\xb8";  // ▸
-            out += indent + ansi::color::BULLET + bullet + ansi::RESET + " " + renderInline(b.content) + "\n";
+            std::string indent(static_cast<size_t>(b.level) * 3 + 2, ' ');
+            // ◆ level0  ◇ level1  ╸ level2+
+            const char* bullet = b.level == 0 ? "\xe2\x97\x86"   // ◆
+                               : b.level == 1 ? "\xe2\x97\x87"   // ◇
+                               :                "\xe2\x95\xb8";  // ╸
+            out += indent + ansi::color::BULLET + bullet + ansi::RESET
+                 + " " + renderInline(b.content) + "\n";
             break;
         }
 
         // ── Ordered list ─────────────────────────────────────────────────────
         case BlockType::OL_ITEM:
             if (idx == 0 || blocks[idx-1].type != BlockType::OL_ITEM) olCounter = 1;
-            out += "  " + ansi::color::NUMBER + std::to_string(olCounter++) + "." + ansi::RESET
+            out += "  " + ansi::color::NUMBER + "\xe2\x97\x86 " + std::to_string(olCounter++) + "." + ansi::RESET
                  + " " + renderInline(b.content) + "\n";
             break;
 
